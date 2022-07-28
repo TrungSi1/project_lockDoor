@@ -22,6 +22,8 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "rc522.h"
+#include "FLASH_SECTOR_F4.h"
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -43,10 +45,17 @@ SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_rx;
 
 /* USER CODE BEGIN PV */
+uint8_t ExTi_1;
+uint8_t *pExTi_1;
+
 uint8_t u8_SPI1_RxBuff[20];
 uint8_t		str[MFRC522_MAX_LEN];												// MFRC522_MAX_LEN = 16
 uint8_t  uid_card_flash[16] = {0x26, 0x3F, 0xE0, 0xAD, 0x81, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 uint8_t  control_Door; //open = 1, close = 0 ;
+
+uint8_t Rx_Data[48];
+//uint8_t Data[48]={0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,};
+uint8_t Data[48];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -64,6 +73,73 @@ uint8_t uid_compare(uint8_t uid_card_flash[], uint8_t str[])
 					}
 					return 1;
 	}
+	
+	
+	void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  /* Prevent unused argument(s) compilation warning */
+  UNUSED(GPIO_Pin);
+	if(GPIO_Pin == GPIO_PIN_0)
+	{
+			ExTi_1 = 1 ;
+	}
+  /* NOTE: This function Should not be modified, when the callback is needed,
+           the HAL_GPIO_EXTI_Callback could be implemented in the user file
+   */
+}
+
+void Handle_EXTI1()
+{
+		
+		// ----------begin READ data form flash, then compare with data---------------
+//		Flash_Read_Data(0x08061000 , Rx_Data, 27);
+//		
+//		uint8_t compare = 0;
+//		while(compare < 3)
+//		{
+//			if(uid_compare(Rx_Data, data2, compare))
+//			{
+//				open_door = 1;
+//				break;
+//			}
+//			else
+//			{
+//				compare++;
+//			}
+//		}
+//		
+		// ----------end READ data form flash, then compare with data---------------
+		
+		
+		// ----------begin write data into flash, max 3---------------
+		Flash_Read_Data(0x08061000 , Rx_Data, 48);
+		
+		// coppy Rx_Data into Data
+		memcpy((void *)Data, (void *)Rx_Data, sizeof(Rx_Data));
+		
+		 
+		if(Data[0] == 0)
+		{
+			memcpy(&Data[0], (void *)str, sizeof(str));
+		}
+		else
+		{
+			if(Data[16] == 0)
+			{
+			memcpy(&Data[16], (void *)str, sizeof(str));
+			}
+			else
+			{
+				if(Data[32] == 0){memcpy(&Data[32], (void *)str, sizeof(str));}
+			}
+		}
+
+		Flash_Write_Data(0x08061000 , (uint8_t *)Data, 48);
+		// ----------end write data into flash, max 3---------------
+		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
+		ExTi_1 = 0;
+}
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -113,12 +189,24 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		//RFID
 		if (!MFRC522_Request(PICC_REQIDL, str)) { 
 			if (!MFRC522_Anticoll(str)) {
 				(uid_compare(uid_card_flash, str) == 1) ? (control_Door = 1) : (control_Door = 0);
 			}
-
 		}
+		//EXTI1
+		if(ExTi_1 == 1)
+		{
+			HAL_Delay(20); // Ignore the noise time of button
+			if(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == 1)
+			{
+					Handle_EXTI1();
+				while(HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_0) == 1); // wait for key release
+			}
+		}
+		
+		
   }
   /* USER CODE END 3 */
 }
@@ -234,9 +322,19 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOD_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PA0 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PA4 */
   GPIO_InitStruct.Pin = GPIO_PIN_4;
@@ -244,6 +342,17 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : PD12 */
+  GPIO_InitStruct.Pin = GPIO_PIN_12;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI0_IRQn);
 
 }
 

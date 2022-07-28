@@ -30,3 +30,5 @@
 1_lock_door\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_pwr_ex.h
 1_lock_door\main.o: ../Drivers/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal_spi.h
 1_lock_door\main.o: ../Core/Inc/rc522.h
+1_lock_door\main.o: ../Core/Inc/FLASH_SECTOR_F4.h
+1_lock_door\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
