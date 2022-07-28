@@ -33,6 +33,8 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define   ID_card_true    1 ;
+#define   ID_card_false    0 ;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -50,7 +52,6 @@ uint8_t *pExTi_1;
 
 uint8_t u8_SPI1_RxBuff[20];
 uint8_t		str[MFRC522_MAX_LEN];												// MFRC522_MAX_LEN = 16
-uint8_t  uid_card_flash[16] = {0x26, 0x3F, 0xE0, 0xAD, 0x81, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 uint8_t  control_Door; //open = 1, close = 0 ;
 
 uint8_t Rx_Data[48];
@@ -64,15 +65,35 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
-uint8_t uid_compare(uint8_t uid_card_flash[], uint8_t str[])
+//uid card comparison
+uint8_t uid_compare(uint8_t uid_card_flash[], uint8_t str[], uint8_t compare)
 	{
-				uint8_t		flag; // doc ma the dung = 1, sai = 0
-				for(int i = 1; i < 16; i++)
+		uint8_t flag = ID_card_true;
+		
+			if(compare == 0)
+			{
+				for(int i = 1; i < 5; i++) //Ignore byte start of str therefor begin i = 1
 					{
-						if(str[i] != uid_card_flash[i]) return 0 ; 
+						if(str[i] != uid_card_flash[i]) {flag = ID_card_false ;break;} 
 					}
-					return 1;
+			}
+			if(compare == 1)
+			{
+				for(int i = 1; i < 5; i++)
+					{
+						if(str[i] != uid_card_flash[i + 16]) {flag = ID_card_false ;break;} ; // card 2 begin at index 17
+					}
+			}
+			if(compare == 2)
+			{
+				for(int i = 1; i < 5; i++)
+					{
+						if(str[i] != uid_card_flash[i + 32]) {flag = ID_card_false ;break;} ; // card 3 begin at index 33
+					}
+			}
+			return flag;
 	}
+
 	
 	
 	void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
@@ -92,49 +113,49 @@ void Handle_EXTI1()
 {
 		
 		// ----------begin READ data form flash, then compare with data---------------
-//		Flash_Read_Data(0x08061000 , Rx_Data, 27);
-//		
-//		uint8_t compare = 0;
-//		while(compare < 3)
-//		{
-//			if(uid_compare(Rx_Data, data2, compare))
-//			{
-//				open_door = 1;
-//				break;
-//			}
-//			else
-//			{
-//				compare++;
-//			}
-//		}
-//		
+		Flash_Read_Data(0x08061000 , Rx_Data, 48);
+		
+		uint8_t compare = 0;
+		while(compare < 3)
+		{
+			if(uid_compare(Rx_Data, str, compare))
+			{
+				control_Door = 1;
+				break;
+			}
+			else
+			{
+				compare++;
+			}
+		}
+		
 		// ----------end READ data form flash, then compare with data---------------
 		
 		
 		// ----------begin write data into flash, max 3---------------
-		Flash_Read_Data(0x08061000 , Rx_Data, 48);
-		
-		// coppy Rx_Data into Data
-		memcpy((void *)Data, (void *)Rx_Data, sizeof(Rx_Data));
-		
-		 
-		if(Data[0] == 0)
-		{
-			memcpy(&Data[0], (void *)str, sizeof(str));
-		}
-		else
-		{
-			if(Data[16] == 0)
-			{
-			memcpy(&Data[16], (void *)str, sizeof(str));
-			}
-			else
-			{
-				if(Data[32] == 0){memcpy(&Data[32], (void *)str, sizeof(str));}
-			}
-		}
+//		Flash_Read_Data(0x08061000 , Rx_Data, 48);
+//		
+//		// coppy Rx_Data into Data
+//		memcpy((void *)Data, (void *)Rx_Data, sizeof(Rx_Data));
+//		
+//		 
+//		if(Data[0] == 0)
+//		{
+//			memcpy(&Data[0], (void *)str, sizeof(str));
+//		}
+//		else
+//		{
+//			if(Data[16] == 0)
+//			{
+//			memcpy(&Data[16], (void *)str, sizeof(str));
+//			}
+//			else
+//			{
+//				if(Data[32] == 0){memcpy(&Data[32], (void *)str, sizeof(str));}
+//			}
+//		}
 
-		Flash_Write_Data(0x08061000 , (uint8_t *)Data, 48);
+//		Flash_Write_Data(0x08061000 , (uint8_t *)Data, 48);
 		// ----------end write data into flash, max 3---------------
 		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
 		ExTi_1 = 0;
@@ -192,7 +213,7 @@ int main(void)
 		//RFID
 		if (!MFRC522_Request(PICC_REQIDL, str)) { 
 			if (!MFRC522_Anticoll(str)) {
-				(uid_compare(uid_card_flash, str) == 1) ? (control_Door = 1) : (control_Door = 0);
+				
 			}
 		}
 		//EXTI1
