@@ -24,6 +24,7 @@
 #include "rc522.h"
 #include "FLASH_SECTOR_F4.h"
 #include <string.h>
+#include "i2c-lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -33,8 +34,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define   ID_card_true    1 ;
-#define   ID_card_false    0 ;
+#define   ID_card_true    	1 ;
+#define   ID_card_false    	0 ;
+
+#define   Lcd_open_door  		1;
+#define   Lcd_card_false  	2;
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -43,6 +47,8 @@
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
+I2C_HandleTypeDef hi2c1;
+
 SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_rx;
 
@@ -56,7 +62,8 @@ uint8_t  control_Door; //open = 1, close = 0 ;
 
 uint8_t Rx_Data[48];
 uint8_t Data[48];
-uint8_t count_Add;
+uint8_t remaining_updates;
+uint8_t state = 0; //display lcd
 
 /* USER CODE END PV */
 
@@ -65,7 +72,9 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_SPI1_Init(void);
+static void MX_I2C1_Init(void);
 /* USER CODE BEGIN PFP */
+
 //uid card comparison
 uint8_t uid_compare(uint8_t uid_card_flash[], uint8_t str[], uint8_t compare)
 	{
@@ -95,6 +104,16 @@ uint8_t uid_compare(uint8_t uid_card_flash[], uint8_t str[], uint8_t compare)
 			return flag;
 	}
 
+	//count_element_duplicate
+uint8_t count_element_duplicate(uint8_t* array, uint8_t size, uint8_t x)
+	{
+    uint8_t count = 0;
+    for(uint8_t i=0; i<size; i++){
+      if(array[i]==x) 
+        count ++;
+    }
+    return count;
+	}
 	
 	
 	void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
@@ -110,21 +129,22 @@ uint8_t uid_compare(uint8_t uid_card_flash[], uint8_t str[], uint8_t compare)
    */
 }
 
+
 void Handle_EXTI1()
 {
 		// ----------begin write data into flash, max 3---------------
-		count_Add++;
+		
 		Flash_Read_Data(0x08061000 , Rx_Data, 48);
+	 
 		// coppy Rx_Data into Data
 		memcpy((void *)Data, (void *)Rx_Data, sizeof(Rx_Data));
 	
-	if(count_Add > 3)
+	if(remaining_updates == 0)
 		{
 		 //Data = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0};
 			memcpy(&Data[0], (void *)str, sizeof(str)); //card 1
 			Data[16] = 0; //card 2
 			Data[32] = 0 ; //card 3
-			count_Add = 0;
 		}
 	else
 		{
@@ -145,9 +165,63 @@ void Handle_EXTI1()
 		}
 		}
 		Flash_Write_Data(0x08061000 , (uint8_t *)Data, 48);
+		
+		//count the number of updates remaining
+		Flash_Read_Data(0x08061000 , Rx_Data, 48);
+		 switch (count_element_duplicate(Rx_Data, 48, 0)) 
+		{
+			case 35: //35 number 0 of Rx_Data <=> remaining 2 slot can be update
+				{
+					remaining_updates = 2;
+					break;
+				}
+			case 34: 
+				{
+					remaining_updates = 1;
+					break;
+				}
+			default: remaining_updates = 0; //33 number 0 when add full 3 slot
+				
+		}
 		// ----------end write data into flash, max 3---------------
 		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
 		ExTi_1 = 0;
+}
+
+void Display_Lcd(uint8_t state)
+{
+		switch(state)
+		{
+			case 0: //start
+			{
+				lcd_put_cur(0,0);
+				lcd_send_string("This is Project");
+				HAL_Delay(10);
+				lcd_put_cur(1,4); //row 1, index 4
+				lcd_send_string("Lock Door");
+				break;
+			}
+			case 1: //open door
+			{
+				lcd_put_cur(0,2);
+				lcd_send_string("Well Come To");
+				HAL_Delay(10);
+				lcd_put_cur(1,4); //row 1, index 4
+				lcd_send_string("My House");
+				break;
+			}
+			case 2: //card false
+			{
+				lcd_put_cur(0,0);
+				lcd_send_string("Can't Open Door ");
+				HAL_Delay(10);
+				lcd_put_cur(1,0); //row 1, index 4
+				lcd_send_string("Press UpdateCard");
+				lcd_put_cur(1,14);
+				//lcd_send_data(remaining_updates + 48);
+				break;
+			}
+		}
 }
 
 /* USER CODE END PFP */
@@ -187,18 +261,27 @@ int main(void)
   MX_GPIO_Init();
   MX_DMA_Init();
   MX_SPI1_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 	MFRC522_Init();
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 0);
+	
+	lcd_init();
+	
+	
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+//		lcd_clear();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+		// Display Lcd
+		Display_Lcd(state);
+	
 		//RFID
 		if (!MFRC522_Request(PICC_REQIDL, str)) { 
 			
@@ -213,12 +296,19 @@ int main(void)
 							if(uid_compare(Rx_Data, str, compare))
 							{
 								control_Door = 1;
+								lcd_clear();
+								HAL_Delay(400);
+								state = Lcd_open_door;
 								break;
 							}
 							else
 							{
 								compare++;
 							}
+							
+							lcd_clear();
+							HAL_Delay(100);
+							state = Lcd_card_false;
 						}
 		
 		// ----------end READ data form flash, then compare with data---------------
@@ -284,6 +374,40 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+}
+
+/**
+  * @brief I2C1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_I2C1_Init(void)
+{
+
+  /* USER CODE BEGIN I2C1_Init 0 */
+
+  /* USER CODE END I2C1_Init 0 */
+
+  /* USER CODE BEGIN I2C1_Init 1 */
+
+  /* USER CODE END I2C1_Init 1 */
+  hi2c1.Instance = I2C1;
+  hi2c1.Init.ClockSpeed = 100000;
+  hi2c1.Init.DutyCycle = I2C_DUTYCYCLE_2;
+  hi2c1.Init.OwnAddress1 = 0;
+  hi2c1.Init.AddressingMode = I2C_ADDRESSINGMODE_7BIT;
+  hi2c1.Init.DualAddressMode = I2C_DUALADDRESS_DISABLE;
+  hi2c1.Init.OwnAddress2 = 0;
+  hi2c1.Init.GeneralCallMode = I2C_GENERALCALL_DISABLE;
+  hi2c1.Init.NoStretchMode = I2C_NOSTRETCH_DISABLE;
+  if (HAL_I2C_Init(&hi2c1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN I2C1_Init 2 */
+
+  /* USER CODE END I2C1_Init 2 */
+
 }
 
 /**
@@ -353,12 +477,13 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOD_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_SET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(Led_GPIO_Port, Led_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : PA0 */
   GPIO_InitStruct.Pin = GPIO_PIN_0;
@@ -373,12 +498,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PD12 */
-  GPIO_InitStruct.Pin = GPIO_PIN_12;
+  /*Configure GPIO pin : Led_Pin */
+  GPIO_InitStruct.Pin = Led_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
+  HAL_GPIO_Init(Led_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
   HAL_NVIC_SetPriority(EXTI0_IRQn, 0, 0);
