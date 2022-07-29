@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 
+
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "rc522.h"
@@ -33,8 +34,11 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define   ID_card_true    1 ;
-#define   ID_card_false    0 ;
+#define   ID_card_true    1 
+#define   ID_card_false    0 
+#define Max_index_of_Card  160 
+#define Max_Number_of_Card  10 
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -54,9 +58,11 @@ uint8_t u8_SPI1_RxBuff[20];
 uint8_t		str[MFRC522_MAX_LEN];												// MFRC522_MAX_LEN = 16
 uint8_t  control_Door; //open = 1, close = 0 ;
 
-uint8_t Rx_Data[48];
-//uint8_t Data[48]={0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,};
-uint8_t Data[48];
+ 
+uint8_t Rx_Data[Max_index_of_Card];
+uint8_t Data[Max_index_of_Card];
+uint8_t number_cards ;
+uint8_t *Pnumber_cards = &number_cards;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,36 +71,7 @@ static void MX_GPIO_Init(void);
 static void MX_DMA_Init(void);
 static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
-//uid card comparison
-uint8_t uid_compare(uint8_t uid_card_flash[], uint8_t str[], uint8_t compare)
-	{
-		uint8_t flag = ID_card_true;
-		
-			if(compare == 0)
-			{
-				for(int i = 1; i < 5; i++) //Ignore byte start of str therefor begin i = 1
-					{
-						if(str[i] != uid_card_flash[i]) {flag = ID_card_false ;break;} 
-					}
-			}
-			if(compare == 1)
-			{
-				for(int i = 1; i < 5; i++)
-					{
-						if(str[i] != uid_card_flash[i + 16]) {flag = ID_card_false ;break;} ; // card 2 begin at index 17
-					}
-			}
-			if(compare == 2)
-			{
-				for(int i = 1; i < 5; i++)
-					{
-						if(str[i] != uid_card_flash[i + 32]) {flag = ID_card_false ;break;} ; // card 3 begin at index 33
-					}
-			}
-			return flag;
-	}
 
-	
 	
 	void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
@@ -111,54 +88,29 @@ uint8_t uid_compare(uint8_t uid_card_flash[], uint8_t str[], uint8_t compare)
 
 void Handle_EXTI1()
 {
-		
-		// ----------begin READ data form flash, then compare with data---------------
-		Flash_Read_Data(0x08061000 , Rx_Data, 48);
-		
-		uint8_t compare = 0;
-		while(compare < 3)
-		{
-			if(uid_compare(Rx_Data, str, compare))
+	HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_SET);
+	
+		//Erase_Sector_Flash( 0x08061000, Max_index_of_Card);
+	
+	//---write data into flash---
+	Flash_Read_Data(0x08061000 , Rx_Data, Max_index_of_Card);
+	
+	for(uint8_t i=0; i< Max_index_of_Card; i++)
+	{
+		if(Rx_Data[i] == 0xFF)
 			{
-				control_Door = 1;
+				// coppy Rx_Data into Data
+				memcpy((void *)Data, (void *)Rx_Data, sizeof(Rx_Data));
+				memcpy(&Data[i], (void *)str, sizeof(str));
+				Flash_Write_Data(0x08061000 , (uint8_t *)Data, Max_index_of_Card);
+				number_cards = (i/16) + 1;
 				break;
 			}
-			else
-			{
-				compare++;
-			}
-		}
-		
-		// ----------end READ data form flash, then compare with data---------------
-		
-		
-		// ----------begin write data into flash, max 3---------------
-//		Flash_Read_Data(0x08061000 , Rx_Data, 48);
-//		
-//		// coppy Rx_Data into Data
-//		memcpy((void *)Data, (void *)Rx_Data, sizeof(Rx_Data));
-//		
-//		 
-//		if(Data[0] == 0)
-//		{
-//			memcpy(&Data[0], (void *)str, sizeof(str));
-//		}
-//		else
-//		{
-//			if(Data[16] == 0)
-//			{
-//			memcpy(&Data[16], (void *)str, sizeof(str));
-//			}
-//			else
-//			{
-//				if(Data[32] == 0){memcpy(&Data[32], (void *)str, sizeof(str));}
-//			}
-//		}
-
-//		Flash_Write_Data(0x08061000 , (uint8_t *)Data, 48);
-		// ----------end write data into flash, max 3---------------
-		HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_12);
-		ExTi_1 = 0;
+	}
+	//---------------------------
+	
+  HAL_GPIO_WritePin(GPIOD, GPIO_PIN_12, GPIO_PIN_RESET);
+	ExTi_1 = 0;
 }
 
 /* USER CODE END PFP */
@@ -199,8 +151,10 @@ int main(void)
   MX_DMA_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
+	
 	MFRC522_Init();
 	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 0);
+	
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -213,7 +167,21 @@ int main(void)
 		//RFID
 		if (!MFRC522_Request(PICC_REQIDL, str)) { 
 			if (!MFRC522_Anticoll(str)) {
-				
+								
+				// compare card 
+					Flash_Read_Data(0x08061000 , Rx_Data, Max_index_of_Card);
+					
+					for( uint8_t i=1; i< 146 ;i += 16) // get index 1 of 10 card in flash
+					{
+						uint8_t flag = ID_card_true;
+						
+						for( uint8_t j=1; j< 5 ;j++)
+						{
+							if(str[j] != Rx_Data[i]){flag = ID_card_false; break;}
+							i++;
+						}
+						if(flag){control_Door = 1; break;}
+					}	
 			}
 		}
 		//EXTI1

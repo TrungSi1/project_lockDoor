@@ -21,7 +21,13 @@
 
 uint32_t Flash_Write_Data (uint32_t StartSectorAddress, uint8_t *Data, uint16_t numberofwords);
 
+uint32_t Flash_Write_Data_NOT_Erase (uint32_t StartSectorAddress, uint8_t *Data, uint16_t numberofwords);
+
+uint32_t Erase_Sector_Flash( uint32_t StartSectorAddress, uint16_t numberofwords);
+
+
 void Flash_Read_Data (uint32_t StartSectorAddress, uint8_t *RxBuf, uint16_t numberofwords);
+
 
 void Convert_To_Str (uint32_t *Data, char *Buf);
 

@@ -234,6 +234,67 @@ uint32_t Flash_Write_Data (uint32_t StartSectorAddress, uint8_t *Data, uint16_t 
 	   return 0;
 }
 
+//uint32_t Flash_Write_Data_NOT_Erase (uint32_t StartSectorAddress, uint8_t *Data, uint16_t numberofwords)
+//{
+//	
+//	int sofar=0;
+
+
+//	 /* Unlock the Flash to enable the flash control register access *************/
+//	  HAL_FLASH_Unlock();
+//	
+//	   while (sofar<numberofwords)
+//	   {
+//	     if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE , StartSectorAddress, Data[sofar]) == HAL_OK)
+//	     {
+//	    	 StartSectorAddress += 1;  // use StartPageAddress += 1 for byte, 2 for half word, 4 for word and 8 for double word
+//	    	 sofar++;
+//	     }
+//	     else
+//	     {
+//	       /* Error occurred while writing data in Flash memory*/
+//	    	 return HAL_FLASH_GetError ();
+//	     }
+//	   }
+
+//	  /* Lock the Flash to disable the flash control register access (recommended
+//	     to protect the FLASH memory against possible unwanted operation) *********/
+//	  HAL_FLASH_Lock();
+
+//	   return 0;
+//}
+
+uint32_t Erase_Sector_Flash( uint32_t StartSectorAddress, uint16_t numberofwords)
+{
+		static FLASH_EraseInitTypeDef EraseInitStruct;
+		uint32_t SECTORError;
+	
+	HAL_FLASH_Unlock();
+	
+	 uint32_t StartSector = GetSector(StartSectorAddress);
+	// EndSectorAddress = startAddress + numberofwords* (byte = 1 ,h-word=2, word=4, db=8)
+	  uint32_t EndSectorAddress = StartSectorAddress + numberofwords*1; 
+	  uint32_t EndSector = GetSector(EndSectorAddress);
+	
+	/* Fill EraseInit structure*/
+	  EraseInitStruct.TypeErase     = FLASH_TYPEERASE_SECTORS;
+	  EraseInitStruct.VoltageRange  = FLASH_VOLTAGE_RANGE_3;
+	  EraseInitStruct.Sector        = StartSector;
+	  EraseInitStruct.NbSectors     = (EndSector - StartSector) + 1;
+
+	  /* Note: If an erase operation in Flash memory also concerns data in the data or instruction cache,
+	     you have to make sure that these data are rewritten before they are accessed during code
+	     execution. If this cannot be done safely, it is recommended to flush the caches by setting the
+	     DCRST and ICRST bits in the FLASH_CR register. */
+	  if (HAL_FLASHEx_Erase(&EraseInitStruct, &SECTORError) != HAL_OK)
+	  {
+		  return HAL_FLASH_GetError ();
+	  }
+		HAL_FLASH_Lock();
+
+	   return 0;
+}
+
 
 void Flash_Read_Data (uint32_t StartSectorAddress, uint8_t *RxBuf, uint16_t numberofwords)
 {
