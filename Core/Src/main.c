@@ -37,7 +37,7 @@
 #define   ID_card_true    	1 ;
 #define   ID_card_false    	0 ;
 
-#define   Lcd_open_door  		1;
+#define   Lcd_open_door  	1;
 #define   Lcd_card_false  	2;
 /* USER CODE END PD */
 
