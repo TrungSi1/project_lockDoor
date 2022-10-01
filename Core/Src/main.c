@@ -48,7 +48,6 @@
 
 /* Private variables ---------------------------------------------------------*/
 I2C_HandleTypeDef hi2c1;
-
 SPI_HandleTypeDef hspi1;
 DMA_HandleTypeDef hdma_spi1_rx;
 
@@ -84,21 +83,21 @@ uint8_t uid_compare(uint8_t uid_card_flash[], uint8_t str[], uint8_t compare)
 			{
 				for(int i = 1; i < 5; i++) //Ignore byte start of str therefor begin i = 1
 					{
-						if(str[i] != uid_card_flash[i]) {flag = ID_card_false ;break;} 
+					if(str[i] != uid_card_flash[i]) {flag = ID_card_false ;break;} 
 					}
 			}
 			if(compare == 1)
 			{
 				for(int i = 1; i < 5; i++)
 					{
-						if(str[i] != uid_card_flash[i + 16]) {flag = ID_card_false ;break;} ; // card 2 begin at index 17
+					if(str[i] != uid_card_flash[i + 16]) {flag = ID_card_false ;break;} ; // card 2 begin at index 17
 					}
 			}
 			if(compare == 2)
 			{
 				for(int i = 1; i < 5; i++)
 					{
-						if(str[i] != uid_card_flash[i + 32]) {flag = ID_card_false ;break;} ; // card 3 begin at index 33
+					if(str[i] != uid_card_flash[i + 32]) {flag = ID_card_false ;break;} ; // card 3 begin at index 33
 					}
 			}
 			return flag;
@@ -106,14 +105,14 @@ uint8_t uid_compare(uint8_t uid_card_flash[], uint8_t str[], uint8_t compare)
 
 	//count_element_duplicate
 uint8_t count_element_duplicate(uint8_t* array, uint8_t size, uint8_t x)
-	{
+{
     uint8_t count = 0;
     for(uint8_t i=0; i<size; i++){
       if(array[i]==x) 
         count ++;
     }
     return count;
-	}
+}
 	
 	
 	void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
@@ -141,7 +140,6 @@ void Handle_EXTI1()
 	
 	if(remaining_updates == 0)
 		{
-		 //Data = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0};
 			memcpy(&Data[0], (void *)str, sizeof(str)); //card 1
 			Data[16] = 0; //card 2
 			Data[32] = 0 ; //card 3
@@ -263,11 +261,9 @@ int main(void)
   MX_SPI1_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-	MFRC522_Init();
-	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 0);
-	
-	lcd_init();
-	
+  MFRC522_Init();
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 0);
+  lcd_init();
 	
   /* USER CODE END 2 */
 
@@ -275,10 +271,6 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-//		lcd_clear();
-    /* USER CODE END WHILE */
-
-    /* USER CODE BEGIN 3 */
 		// Display Lcd
 		Display_Lcd(state);
 	
@@ -288,7 +280,7 @@ int main(void)
 			if (!MFRC522_Anticoll(str)) {
 				
 		// ----------begin READ data form flash, then compare with data---------------
-						Flash_Read_Data(0x08061000 , Rx_Data, 48);
+						Flash_Read_Data(0x08061000 , Rx_Data, 48); //each card include 16 number 16x3 = 48
 						
 						uint8_t compare = 0;
 						while(compare < 3)
@@ -313,7 +305,7 @@ int main(void)
 		
 		// ----------end READ data form flash, then compare with data---------------
 				
-			}
+		}
 		}
 		//EXTI1
 		if(ExTi_1 == 1)
