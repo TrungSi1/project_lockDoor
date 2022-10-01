@@ -57,8 +57,8 @@ uint8_t ExTi_1;
 uint8_t *pExTi_1;
 
 uint8_t u8_SPI1_RxBuff[20];
-uint8_t		str[MFRC522_MAX_LEN];												// MFRC522_MAX_LEN = 16
-uint8_t  control_Door; //open = 1, close = 0 ;
+uint8_t	str[MFRC522_MAX_LEN]; // MFRC522_MAX_LEN = 16
+uint8_t control_Door; //open = 1, close = 0 ;
 
 uint8_t Rx_Data[48];
 uint8_t Data[48];
